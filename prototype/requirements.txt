@@ -4,3 +4,8 @@ sounddevice
 numpy
 scipy
 huggingface_hub
+requests
+beautifulsoup4
+onnxruntime
+asyncio 
+aiohttp

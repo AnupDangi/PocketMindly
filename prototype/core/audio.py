@@ -6,6 +6,7 @@ import subprocess
 import threading
 import queue
 import sys
+import time
 
 # Audio configuration
 SAMPLE_RATE = 44100  # Changed to 44100 for better Mac compatibility
@@ -25,10 +26,7 @@ def record_audio(filename="input.wav"):
             print(status, file=sys.stderr)
         q.put(indata.copy())
 
-    print("\n🔴 Press Enter to START recording...")
-    input()
-    
-    print("\n🎙️ Recording... Press Enter to STOP.")
+    print("\n🎙️ Listening... Press Enter to STOP.")
     
     # Start recording in a non-blocking stream
     stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype=DTYPE, callback=callback)
@@ -55,8 +53,9 @@ def record_audio(filename="input.wav"):
     
     # Normalize Audio (Boost volume)
     max_val = np.max(np.abs(recording))
+    
     if max_val > 0:
-        # Target 50% of max volume to avoid clipping but hear clearly
+        # Target 80% of max volume
         recording = (recording / max_val) * (32767 * 0.8)
         recording = recording.astype(np.int16)
         
@@ -68,9 +67,15 @@ def speak_text(text):
     Uses the system's TTS (macOS 'say' command) to speak the text.
     """
     try:
+        # Sanitize text for shell command (basic)
+        # Remove characters that might confuse the shell or 'say' command
+        safe_text = text.replace('"', '').replace("'", "").replace('`', '')
+        
         # Using 'say' command on macOS
         # -r 175 sets the rate (optional, can adjust)
-        subprocess.run(["say", text], check=True)
+        subprocess.run(["say", safe_text], check=True)
+        # Small buffer to ensure audio device is free before recording again
+        time.sleep(0.5)
     except Exception as e:
         print(f"Error in TTS: {e}")
 

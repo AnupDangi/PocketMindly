@@ -25,3 +25,12 @@ print("Downloading Whisper tiny model...")
 model = WhisperModel("tiny", device="cpu", compute_type="int8", download_root="./models/whisper-tiny")
 print("Whisper model downloaded.")
 
+print("Downloading Silero VAD model...")
+vad_path = hf_hub_download(
+    repo_id="onnx-community/silero-vad",
+    filename="onnx/model.onnx",
+    local_dir=LOCAL_DIR,
+    local_dir_use_symlinks=False
+)
+print(f"Silero VAD model downloaded to: {vad_path}")
+
