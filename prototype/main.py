@@ -148,6 +148,8 @@ class FullStreamingAssistant:
         """Process user text with LLM and web search if needed (async)"""
         await asyncio.sleep(0.2)
         
+        loop = asyncio.get_event_loop()
+        
         # RULE-BASED SEARCH DETECTION (because Gemma 2B refuses to output SEARCH)
         # Check if question needs web search
         user_lower = user_text.lower()
@@ -169,30 +171,48 @@ class FullStreamingAssistant:
         if needs_search:
             # Extract search query
             search_query = user_text
-            for prefix in ["who is ", "who's ", "what is ", "what's ", "tell me about ", "give me "]:
+            for prefix in ["who is ", "who's ", "what is ", "what's ", "tell me about ", "give me ", "find "]:
                 if prefix in user_lower:
                     search_query = user_text.lower().replace(prefix, "").strip()
                     break
             
             print(f"🔍 Auto-search triggered: {search_query}")
             
-            # Run async search
-            search_context = await self.web_tool.get_context(search_query)
-            
-            # DEBUG: Show search context
-            print(f"[DEBUG] Search context length: {len(search_context)} chars")
-            if len(search_context) > 100:
-                print(f"[DEBUG] Search context preview: {search_context[:200]}...")
-            
-            # Generate answer using search context (in executor)
-            print("🤔 Generating answer from search...")
-            loop = asyncio.get_event_loop()
-            response_text = await loop.run_in_executor(
-                None, 
-                self.llm.generate_response_with_search, 
-                user_text, 
-                search_context
-            )
+            try:
+                # Run async search
+                search_context = await self.web_tool.get_context(search_query)
+                
+                # Check if we got valid results
+                if search_context and len(search_context) > 100:
+                    # DEBUG: Show search context
+                    print(f"[DEBUG] Search context length: {len(search_context)} chars")
+                    if len(search_context) > 100:
+                        print(f"[DEBUG] Search context preview: {search_context[:200]}...")
+                    
+                    # Generate answer using search context (in executor)
+                    print("🤔 Generating answer from search...")
+                    loop = asyncio.get_event_loop()
+                    response_text = await loop.run_in_executor(
+                        None, 
+                        self.llm.generate_response_with_search, 
+                        user_text, 
+                        search_context
+                    )
+                else:
+                    # Search returned empty results
+                    print("⚠️ Search returned no results, using LLM")
+                    loop = asyncio.get_event_loop()
+                    response_text = await loop.run_in_executor(None, self.llm.generate_response, user_text)
+                    
+            except Exception as e:
+                # Network error or search failed - give direct offline message
+                error_msg = str(e)
+                if "nodename nor servname" in error_msg or "Cannot connect" in error_msg:
+                    print(f"⚠️ Network error: Offline")
+                    response_text = "I'm currently offline and cannot search the web. Please check your internet connection and try again."
+                else:
+                    print(f"⚠️ Search error: {error_msg[:50]}")
+                    response_text = "The web search encountered an error. Please try again."
         else:
             # Normal LLM response
             print("🤔 Thinking...")
